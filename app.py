@@ -34,55 +34,28 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
-# Prompt para evaluar si la respuesta es suficientemente detallada
-plantilla_evaluacion = """
-Respuesta del inversor: {respuesta}
-Evalúa si la respuesta es suficientemente detallada o si es vaga e inespecífica.
-Una respuesta detallada debe incluir una emoción clara, una preocupación específica o una evaluación del impacto.
-
-Si la respuesta es demasiado genérica o ambigua, devuelve:
-"Suficiente: No"
-Si la respuesta es clara y bien fundamentada, devuelve:
-"Suficiente: Sí"
-"""
-prompt_evaluacion = PromptTemplate(template=plantilla_evaluacion, input_variables=["respuesta"])
+# Prompt para evaluar si la respuesta es suficiente
+prompt_evaluacion = PromptTemplate(
+    template="""
+    Respuesta del inversor: {respuesta}
+    Evalúa si la respuesta es suficientemente detallada o si es vaga e inespecífica.
+    Si la respuesta es demasiado genérica, devuelve: "Suficiente: No"
+    Si la respuesta es clara y bien fundamentada, devuelve: "Suficiente: Sí"
+    """,
+    input_variables=["respuesta"]
+)
 cadena_evaluacion = LLMChain(llm=llm, prompt=prompt_evaluacion)
 
-# Prompt para analizar la reacción del usuario y generar una pregunta de seguimiento
-plantilla_reaccion = """
-Reacción del inversor: {reaccion}
-Analiza el sentimiento y la preocupación expresada.  
-Clasifica la preocupación principal en una de estas categorías:  
-- Ambiental  
-- Social  
-- Gobernanza  
-- Riesgo  
-
-Si la respuesta es demasiado breve o poco clara, solicita más detalles de manera específica.  
-
-Luego, genera una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor.  
-Por ejemplo:  
-- Si la categoría es Ambiental: "¿Cómo crees que esto afecta la sostenibilidad del sector?"  
-- Si la categoría es Social: "¿Crees que esto puede afectar la percepción pública de la empresa?"  
-- Si la categoría es Gobernanza: "¿Este evento te hace confiar más o menos en la gestión de la empresa?"  
-- Si la categoría es Riesgo: "¿Consideras que esto aumenta la incertidumbre en el mercado?"  
-
-Devuelve la categoría detectada y la pregunta de seguimiento en el siguiente formato:  
-Categoría: [nombre de la categoría]  
-Pregunta de seguimiento: [pregunta generada]
-"""
-prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
+# Prompt para generar preguntas de seguimiento
+prompt_reaccion = PromptTemplate(
+    template="""
+    Reacción del inversor: {reaccion}
+    Si la respuesta es vaga, genera una pregunta de seguimiento para obtener más detalles.
+    Si la respuesta ya es clara, devuelve: "No es necesario más detalle".
+    """,
+    input_variables=["reaccion"]
+)
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
-
-# Prompt para generar perfil ESG y de riesgo
-plantilla_perfil = """
-Análisis de reacciones: {analisis}
-Genera un perfil detallado del inversor basado en sus reacciones, enfocándote en los pilares ESG (Ambiental, Social y Gobernanza) y su aversión al riesgo. 
-Asigna una puntuación de 0 a 100 para cada pilar ESG y para el riesgo, donde 0 indica ninguna preocupación y 100 máxima preocupación o aversión.
-Devuelve las 4 puntuaciones en formato: Ambiental: [puntuación], Social: [puntuación], Gobernanza: [puntuación], Riesgo: [puntuación]
-"""
-prompt_perfil = PromptTemplate(template=plantilla_perfil, input_variables=["analisis"])
-cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 
 # Inicializar estado en Streamlit
 if "historial" not in st.session_state:
@@ -90,6 +63,7 @@ if "historial" not in st.session_state:
     st.session_state.contador = 0
     st.session_state.reacciones = []
     st.session_state.mostrada_noticia = False
+    st.session_state.esperando_respuesta_extra = False  # Nuevo flag
 
 st.title("Chatbot de Análisis de Sentimiento")
 
@@ -112,34 +86,36 @@ if st.session_state.contador < len(noticias):
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
         st.session_state.reacciones.append(user_input)
 
-        # Evaluamos si la respuesta es suficientemente detallada
-        evaluacion = cadena_evaluacion.run(respuesta=user_input)
-        suficiente_match = re.search(r"Suficiente: (Sí|No)", evaluacion)
-
-        if suficiente_match and suficiente_match.group(1) == "No":
-            analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
-            pregunta_match = re.search(r"Pregunta de seguimiento: (.+)", analisis_reaccion)
-
-            with st.chat_message("bot", avatar="🤖"):
-                if pregunta_match:
-                    st.write(f"{pregunta_match.group(1)}")
-                else:
-                    st.write("¿Podrías dar más detalles sobre tu opinión?")
-
-            st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_match.group(1) if pregunta_match else "¿Podrías dar más detalles sobre tu opinión?"})
-        else:
+        if st.session_state.esperando_respuesta_extra:
+            # Si el usuario responde a la pregunta de seguimiento, avanzamos de noticia
             st.session_state.contador += 1
             st.session_state.mostrada_noticia = False
+            st.session_state.esperando_respuesta_extra = False
             st.rerun()
+        else:
+            # Evaluamos si la respuesta es suficientemente detallada
+            evaluacion = cadena_evaluacion.run(respuesta=user_input)
+            suficiente_match = re.search(r"Suficiente: (Sí|No)", evaluacion)
+
+            if suficiente_match and suficiente_match.group(1) == "No":
+                # Generar una pregunta de seguimiento
+                pregunta_seguimiento = cadena_reaccion.run(reaccion=user_input)
+                if "No es necesario más detalle" not in pregunta_seguimiento:
+                    st.session_state.esperando_respuesta_extra = True
+                    with st.chat_message("bot", avatar="🤖"):
+                        st.write(pregunta_seguimiento)
+                    st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
+                else:
+                    # Si no es necesario más detalles, pasamos a la siguiente noticia
+                    st.session_state.contador += 1
+                    st.session_state.mostrada_noticia = False
+                    st.rerun()
+            else:
+                # Si la respuesta es suficiente, pasamos directamente a la siguiente noticia
+                st.session_state.contador += 1
+                st.session_state.mostrada_noticia = False
+                st.rerun()
 else:
-    analisis_total = "\n".join(st.session_state.reacciones)
-    perfil = cadena_perfil.run(analisis=analisis_total)
     with st.chat_message("bot", avatar="🤖"):
-        st.write(f"**Perfil del inversor:** {perfil}")
-
-    st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
-
-    # Guardar en Google Sheets (opcional)
-    # Aquí podrías agregar la lógica para almacenar el perfil en la base de datos
-
-st.success("Respuestas y perfil guardados correctamente.")  
+        st.write("Fin del análisis. ¡Gracias por participar!")
+    st.session_state.historial.append({"tipo": "bot", "contenido": "Fin del análisis. ¡Gracias por participar!"})

@@ -9,7 +9,6 @@ import json
 from dotenv import load_dotenv
 import matplotlib.pyplot as plt
 
-# Cargar variables de entorno
 load_dotenv()
 
 # Configurar el modelo LLM
@@ -34,70 +33,51 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
-# Prompt para analizar la reacción del inversor
-prompt_reaccion = PromptTemplate(
-    template="""
-    Respuesta del inversor: {reaccion}
-    Analiza el sentimiento y la preocupación expresada sobre la noticia.
-    """,
-    input_variables=["reaccion"]
-)
+plantilla_reaccion = """
+Reacción del inversor: {reaccion}
+Analiza el sentimiento y la preocupación expresada.  
+Clasifica la preocupación principal en una de estas categorías:  
+- Ambiental  
+- Social  
+- Gobernanza  
+- Riesgo  
+
+Si la respuesta es demasiado breve o poco clara, solicita más detalles de manera específica.  
+
+Luego, genera una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor.  
+Por ejemplo:  
+- Si la categoría es Ambiental: "¿Cómo crees que esto afecta la sostenibilidad del sector?"  
+- Si la categoría es Social: "¿Crees que esto puede afectar la percepción pública de la empresa?"  
+- Si la categoría es Gobernanza: "¿Este evento te hace confiar más o menos en la gestión de la empresa?"  
+- Si la categoría es Riesgo: "¿Consideras que esto aumenta la incertidumbre en el mercado?" 
+"""
+prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
 
-# Prompt para evaluar si la respuesta es suficiente
-prompt_evaluacion = PromptTemplate(
-    template="""
-    Respuesta del inversor: {respuesta}
-    
-    Indica únicamente una de las siguientes opciones:
-    - "Suficiente: Sí"
-    - "Suficiente: No"
-    """,
-    input_variables=["respuesta"]
-)
-cadena_evaluacion = LLMChain(llm=llm, prompt=prompt_evaluacion)
-
-# Prompt para generar una pregunta de seguimiento sobre la noticia
-prompt_pregunta = PromptTemplate(
-    template="""
-    Respuesta del inversor: {respuesta}
-    
-    La respuesta no aborda de manera suficiente los aspectos de la noticia relacionados con ESG (Ambiental, Social y Gobernanza) o con el riesgo. 
-    ¿Podrías explicar más detalladamente qué aspectos específicos de la noticia te parecen problemáticos en términos de sostenibilidad o riesgo? ¿Qué impacto crees que podría tener en las inversiones o en la sociedad?
-    """,
-    input_variables=["respuesta"]
-)
-cadena_pregunta = LLMChain(llm=llm, prompt=prompt_pregunta)
-
-# Prompt para generar el perfil del inversor
-prompt_perfil = PromptTemplate(
-    template="""
-    Análisis de reacciones: {analisis}
-    
-    Genera un perfil detallado del inversor basado en sus reacciones, enfocándote en ESG (Ambiental, Social y Gobernanza) y su aversión al riesgo. 
-    Asigna una puntuación de 0 a 100 para cada pilar ESG y para el riesgo, en este formato:
-    Ambiental: [puntuación], Social: [puntuación], Gobernanza: [puntuación], Riesgo: [puntuación]
-    """,
-    input_variables=["analisis"]
-)
+plantilla_perfil = """
+Análisis de reacciones: {analisis}
+Genera un perfil detallado del inversor basado en sus reacciones, enfocándote en los pilares ESG (Ambiental, Social y Gobernanza) y su aversión al riesgo. 
+Asigna una puntuación de 0 a 100 para cada pilar ESG y para el riesgo, donde 0 indica ninguna preocupación y 100 máxima preocupación o aversión.
+Devuelve las 4 puntuaciones en formato: Ambiental: [puntuación], Social: [puntuación], Gobernanza: [puntuación], Riesgo: [puntuación]
+"""
+prompt_perfil = PromptTemplate(template=plantilla_perfil, input_variables=["analisis"])
 cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 
-# Inicializar el estado de la sesión
+# Definir un umbral de palabras (por ejemplo, 5 palabras)
+UMBRAL_PALABRAS = 5
+
 if "historial" not in st.session_state:
     st.session_state.historial = []
     st.session_state.contador = 0
     st.session_state.reacciones = []
     st.session_state.mostrada_noticia = False
 
-# Interfaz de usuario
 st.title("Chatbot de Análisis de Sentimiento")
 
-# Mostrar historial de conversación
 for mensaje in st.session_state.historial:
     with st.chat_message(mensaje["tipo"]):
         st.write(mensaje["contenido"])
 
-# Mostrar noticias y recoger respuestas del usuario
 if st.session_state.contador < len(noticias):
     if not st.session_state.mostrada_noticia:
         noticia = noticias[st.session_state.contador]
@@ -107,41 +87,28 @@ if st.session_state.contador < len(noticias):
         st.session_state.mostrada_noticia = True
 
     user_input = st.chat_input("Escribe tu respuesta aquí...")
-    
     if user_input:
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
         st.session_state.reacciones.append(user_input)
-
-        # Evaluar si la respuesta es suficiente
-        evaluacion = cadena_evaluacion.run(respuesta=user_input)
-        suficiente = re.search(r"Suficiente: (Sí|No)", evaluacion)
-
-        if suficiente and suficiente.group(1) == "No":
-            # Generar una pregunta de seguimiento centrada en los aspectos de la noticia (ESG o riesgo)
-            pregunta_followup = cadena_pregunta.run(respuesta=user_input)
-            
-            with st.chat_message("bot", avatar="🤖"):
-                st.write(f"{pregunta_followup}")
-            
-            st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_followup})
+        analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
         
+        # Verificar si la respuesta tiene menos de UMBRAL_PALABRAS palabras
+        if len(user_input.split()) < UMBRAL_PALABRAS:
+            with st.chat_message("bot", avatar="🤖"):
+                st.write("Podrías ampliar un poco más tu opinión?")
+            st.session_state.historial.append({"tipo": "bot", "contenido": "Podrías ampliar un poco más tu opinión?"})
         else:
-            # Pasar a la siguiente noticia si la respuesta es suficiente
             st.session_state.contador += 1
             st.session_state.mostrada_noticia = False
             st.rerun()
-
 else:
-    # Generar el perfil final del inversor
     analisis_total = "\n".join(st.session_state.reacciones)
     perfil = cadena_perfil.run(analisis=analisis_total)
-    
     with st.chat_message("bot", avatar="🤖"):
         st.write(f"**Perfil del inversor:** {perfil}")
-    
     st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
 
-    # Extraer puntuaciones con regex
+    # Extraer puntuaciones del perfil con expresiones regulares
     puntuaciones = {
         "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
         "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
@@ -149,7 +116,7 @@ else:
         "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1)),
     }
 
-    # Crear gráfico de perfil del inversor
+    # Crear gráfico de barras
     categorias = list(puntuaciones.keys())
     valores = list(puntuaciones.values())
 
@@ -159,23 +126,34 @@ else:
     ax.set_title("Perfil del Inversor")
     st.pyplot(fig)
 
-    # Guardar en Google Sheets
     try:
+        # Cargar credenciales de Google Sheets
         creds_json_str = st.secrets["gcp_service_account"]
         creds_json = json.loads(creds_json_str)
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
-        client = gspread.authorize(creds)
-        sheet = client.open('BBDD_RESPUESTAS').sheet1
-
-        fila = st.session_state.reacciones[:] + [
-            puntuaciones["Ambiental"],
-            puntuaciones["Social"],
-            puntuaciones["Gobernanza"],
-            puntuaciones["Riesgo"]
-        ]
-        
-        sheet.append_row(fila)
-        st.success("Respuestas y perfil guardados en Google Sheets.")
     except Exception as e:
-        st.error(f"Error al guardar datos: {e}")
+        st.error(f"Error al cargar las credenciales: {e}")
+        st.stop()
+    
+    # Autorización con Google Sheets
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
+    client = gspread.authorize(creds)
+    
+    # Abrir la hoja de cálculo
+    sheet = client.open('BBDD_RESPUESTAS').sheet1
+
+    # Construir una sola fila con todas las respuestas
+    fila = st.session_state.reacciones[:]  # Solo guardar las reacciones
+    
+    # Agregar las puntuaciones al final
+    fila.extend([
+        puntuaciones["Ambiental"],
+        puntuaciones["Social"],
+        puntuaciones["Gobernanza"],
+        puntuaciones["Riesgo"]
+    ])
+    
+    # Agregar la fila a Google Sheets
+    sheet.append_row(fila)
+
+    st.success("Respuestas y perfil guardados en Google Sheets en una misma fila.")

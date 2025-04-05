@@ -63,7 +63,7 @@ prompt_pregunta = PromptTemplate(
     Respuesta del inversor: {respuesta}
     
     La respuesta no aborda de manera suficiente los aspectos de la noticia relacionados con ESG (Ambiental, Social y Gobernanza) o con el riesgo. 
-    Por favor, ¿podrías profundizar en qué aspectos específicos de la noticia te preocupan, ya sea en términos de sostenibilidad o de riesgo?
+    ¿Podrías explicar más detalladamente qué aspectos específicos de la noticia te parecen problemáticos en términos de sostenibilidad o riesgo? ¿Qué impacto crees que podría tener en las inversiones o en la sociedad?
     """,
     input_variables=["respuesta"]
 )
@@ -177,7 +177,5 @@ else:
         
         sheet.append_row(fila)
         st.success("Respuestas y perfil guardados en Google Sheets.")
-    except Exception as e:
-        st.error(f"Error al guardar datos: {e}")
     except Exception as e:
         st.error(f"Error al guardar datos: {e}")

@@ -34,47 +34,70 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
-# Prompt para evaluar si la respuesta es suficiente
-prompt_evaluacion = PromptTemplate(
-    template="""
-    Respuesta del inversor: {respuesta}
-    
-    Contesta SOLO con una de estas opciones, sin agregar más texto:
-    - "Suficiente: Sí"
-    - "Suficiente: No"
-    """,
-    input_variables=["respuesta"]
-)
 
-cadena_evaluacion = LLMChain(llm=llm, prompt=prompt_evaluacion)
-
-# Prompt para generar preguntas de seguimiento
+# Prompt para analizar la reacción del inversor
 prompt_reaccion = PromptTemplate(
     template="""
-    Reacción del inversor: {reaccion}
-    Si la respuesta es vaga, genera una pregunta de seguimiento para obtener más detalles.
-    Si la respuesta ya es clara, devuelve: "No es necesario más detalle".
+    Respuesta del inversor: {reaccion}
+    Analiza el sentimiento y la preocupación expresada.
     """,
     input_variables=["reaccion"]
 )
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
 
-# Inicializar estado en Streamlit
+# Prompt para evaluar si la respuesta es suficiente
+prompt_evaluacion = PromptTemplate(
+    template="""
+    Respuesta del inversor: {respuesta}
+    
+    Indica únicamente una de las siguientes opciones:
+    - "Suficiente: Sí"
+    - "Suficiente: No"
+    """,
+    input_variables=["respuesta"]
+)
+cadena_evaluacion = LLMChain(llm=llm, prompt=prompt_evaluacion)
+
+# Prompt para generar una pregunta de seguimiento si la respuesta es insuficiente
+prompt_pregunta = PromptTemplate(
+    template="""
+    Respuesta del inversor: {respuesta}
+    
+    La respuesta no es suficientemente detallada. Genera una pregunta de seguimiento que lo ayude a profundizar en su punto de vista.
+    """,
+    input_variables=["respuesta"]
+)
+cadena_pregunta = LLMChain(llm=llm, prompt=prompt_pregunta)
+
+# Prompt para generar el perfil del inversor
+prompt_perfil = PromptTemplate(
+    template="""
+    Análisis de reacciones: {analisis}
+    
+    Genera un perfil detallado del inversor basado en sus reacciones, enfocándote en ESG (Ambiental, Social y Gobernanza) y su aversión al riesgo. 
+    Asigna una puntuación de 0 a 100 para cada pilar ESG y para el riesgo, en este formato:
+    Ambiental: [puntuación], Social: [puntuación], Gobernanza: [puntuación], Riesgo: [puntuación]
+    """,
+    input_variables=["analisis"]
+)
+cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
+
+# Inicializar el estado de la sesión
 if "historial" not in st.session_state:
     st.session_state.historial = []
     st.session_state.contador = 0
     st.session_state.reacciones = []
     st.session_state.mostrada_noticia = False
-    st.session_state.esperando_respuesta_extra = False  # Nuevo flag
 
+# Interfaz de usuario
 st.title("Chatbot de Análisis de Sentimiento")
 
-# Mostrar historial
+# Mostrar historial de conversación
 for mensaje in st.session_state.historial:
     with st.chat_message(mensaje["tipo"]):
         st.write(mensaje["contenido"])
 
-# Mostrar noticia y pedir reacción
+# Mostrar noticias y recoger respuestas del usuario
 if st.session_state.contador < len(noticias):
     if not st.session_state.mostrada_noticia:
         noticia = noticias[st.session_state.contador]
@@ -84,40 +107,75 @@ if st.session_state.contador < len(noticias):
         st.session_state.mostrada_noticia = True
 
     user_input = st.chat_input("Escribe tu respuesta aquí...")
+    
     if user_input:
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
         st.session_state.reacciones.append(user_input)
 
-        if st.session_state.esperando_respuesta_extra:
-            # Si el usuario responde a la pregunta de seguimiento, avanzamos de noticia
+        # Evaluar si la respuesta es suficiente
+        evaluacion = cadena_evaluacion.run(respuesta=user_input)
+        suficiente = re.search(r"Suficiente: (Sí|No)", evaluacion)
+
+        if suficiente and suficiente.group(1) == "No":
+            # Generar una pregunta de seguimiento si la respuesta es insuficiente
+            pregunta_followup = cadena_pregunta.run(respuesta=user_input)
+            
+            with st.chat_message("bot", avatar="🤖"):
+                st.write(f"{pregunta_followup}")
+            
+            st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_followup})
+        
+        else:
+            # Pasar a la siguiente noticia
             st.session_state.contador += 1
             st.session_state.mostrada_noticia = False
-            st.session_state.esperando_respuesta_extra = False
             st.rerun()
-        else:
-            # Evaluamos si la respuesta es suficientemente detallada
-            evaluacion = cadena_evaluacion.run(respuesta=user_input)
-            suficiente_match = re.search(r"Suficiente: (Sí|No)", evaluacion)
 
-            if suficiente_match and suficiente_match.group(1) == "No":
-                # Generar una pregunta de seguimiento
-                pregunta_seguimiento = cadena_reaccion.run(reaccion=user_input)
-                if "No es necesario más detalle" not in pregunta_seguimiento:
-                    st.session_state.esperando_respuesta_extra = True
-                    with st.chat_message("bot", avatar="🤖"):
-                        st.write(pregunta_seguimiento)
-                    st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
-                else:
-                    # Si no es necesario más detalles, pasamos a la siguiente noticia
-                    st.session_state.contador += 1
-                    st.session_state.mostrada_noticia = False
-                    st.rerun()
-            else:
-                # Si la respuesta es suficiente, pasamos directamente a la siguiente noticia
-                st.session_state.contador += 1
-                st.session_state.mostrada_noticia = False
-                st.rerun()
 else:
+    # Generar el perfil final del inversor
+    analisis_total = "\n".join(st.session_state.reacciones)
+    perfil = cadena_perfil.run(analisis=analisis_total)
+    
     with st.chat_message("bot", avatar="🤖"):
-        st.write("Fin del análisis. ¡Gracias por participar!")
-    st.session_state.historial.append({"tipo": "bot", "contenido": "Fin del análisis. ¡Gracias por participar!"})
+        st.write(f"**Perfil del inversor:** {perfil}")
+    
+    st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
+
+    # Extraer puntuaciones con regex
+    puntuaciones = {
+        "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
+        "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
+        "Gobernanza": int(re.search(r"Gobernanza: (\d+)", perfil).group(1)),
+        "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1)),
+    }
+
+    # Crear gráfico de perfil del inversor
+    categorias = list(puntuaciones.keys())
+    valores = list(puntuaciones.values())
+
+    fig, ax = plt.subplots()
+    ax.bar(categorias, valores)
+    ax.set_ylabel("Puntuación (0-100)")
+    ax.set_title("Perfil del Inversor")
+    st.pyplot(fig)
+
+    # Guardar en Google Sheets
+    try:
+        creds_json_str = st.secrets["gcp_service_account"]
+        creds_json = json.loads(creds_json_str)
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
+        client = gspread.authorize(creds)
+        sheet = client.open('BBDD_RESPUESTAS').sheet1
+
+        fila = st.session_state.reacciones[:] + [
+            puntuaciones["Ambiental"],
+            puntuaciones["Social"],
+            puntuaciones["Gobernanza"],
+            puntuaciones["Riesgo"]
+        ]
+        
+        sheet.append_row(fila)
+        st.success("Respuestas y perfil guardados en Google Sheets.")
+    except Exception as e:
+        st.error(f"Error al guardar datos: {e}")

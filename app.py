@@ -34,12 +34,11 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
-
 # Prompt para analizar la reacción del inversor
 prompt_reaccion = PromptTemplate(
     template="""
     Respuesta del inversor: {reaccion}
-    Analiza el sentimiento y la preocupación expresada.
+    Analiza el sentimiento y la preocupación expresada sobre la noticia.
     """,
     input_variables=["reaccion"]
 )
@@ -58,12 +57,12 @@ prompt_evaluacion = PromptTemplate(
 )
 cadena_evaluacion = LLMChain(llm=llm, prompt=prompt_evaluacion)
 
-# Prompt para generar una pregunta de seguimiento si la respuesta es insuficiente
+# Prompt para generar una pregunta de seguimiento sobre la noticia
 prompt_pregunta = PromptTemplate(
     template="""
     Respuesta del inversor: {respuesta}
     
-    La respuesta no es suficientemente detallada. Genera una pregunta de seguimiento que lo ayude a profundizar en su punto de vista.
+    La respuesta no es suficientemente detallada sobre la noticia. Genera una pregunta de seguimiento para que el inversor explique mejor su punto de vista sobre los aspectos ESG o el riesgo de la noticia.
     """,
     input_variables=["respuesta"]
 )
@@ -117,7 +116,7 @@ if st.session_state.contador < len(noticias):
         suficiente = re.search(r"Suficiente: (Sí|No)", evaluacion)
 
         if suficiente and suficiente.group(1) == "No":
-            # Generar una pregunta de seguimiento si la respuesta es insuficiente
+            # Generar una pregunta de seguimiento centrada en los aspectos de la noticia (ESG o riesgo)
             pregunta_followup = cadena_pregunta.run(respuesta=user_input)
             
             with st.chat_message("bot", avatar="🤖"):
@@ -126,7 +125,7 @@ if st.session_state.contador < len(noticias):
             st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_followup})
         
         else:
-            # Pasar a la siguiente noticia
+            # Pasar a la siguiente noticia si la respuesta es suficiente
             st.session_state.contador += 1
             st.session_state.mostrada_noticia = False
             st.rerun()

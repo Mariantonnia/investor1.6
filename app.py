@@ -38,12 +38,14 @@ noticias = [
 prompt_evaluacion = PromptTemplate(
     template="""
     Respuesta del inversor: {respuesta}
-    Evalúa si la respuesta es suficientemente detallada o si es vaga e inespecífica.
-    Si la respuesta es demasiado genérica, devuelve: "Suficiente: No"
-    Si la respuesta es clara y bien fundamentada, devuelve: "Suficiente: Sí"
+    
+    Contesta SOLO con una de estas opciones, sin agregar más texto:
+    - "Suficiente: Sí"
+    - "Suficiente: No"
     """,
     input_variables=["respuesta"]
 )
+
 cadena_evaluacion = LLMChain(llm=llm, prompt=prompt_evaluacion)
 
 # Prompt para generar preguntas de seguimiento

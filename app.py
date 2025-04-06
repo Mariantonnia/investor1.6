@@ -92,7 +92,11 @@ if st.session_state.contador < len(noticias):
                 with st.chat_message("bot", avatar="🤖"):
                     st.write(analisis_reaccion)
                 st.session_state.historial.append({"tipo": "bot", "contenido": analisis_reaccion})
-                st.session_state.esperando_respuesta = True  # Esperar respuesta antes de avanzar
+                
+                # Avanzar a la siguiente noticia si la respuesta es suficiente
+                st.session_state.contador += 1
+                st.session_state.mostrada_noticia = False
+                st.session_state.esperando_respuesta = False
+                st.rerun()
 else:
     st.write("Análisis completado. Gracias por participar.")
-

@@ -41,9 +41,9 @@ Clasifica la preocupación principal en una de estas categorías:
 - Gobernanza  
 - Riesgo  
 
-Si la respuesta es demasiado breve o poco clara, devuelve "INSUFICIENTE".
+Evalúa si la respuesta es clara y detallada. Debe contener al menos una justificación o explicación. Si solo expresa una opinión sin justificación, devuelve "INSUFICIENTE".
 
-Luego, genera una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor.
+Si la respuesta es suficiente, genera una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor.
 """
 prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
@@ -74,8 +74,8 @@ if st.session_state.contador < len(noticias):
         
         if "INSUFICIENTE" in analisis_reaccion:
             with st.chat_message("bot", avatar="🤖"):
-                st.write("Tu respuesta es muy breve o poco clara. ¿Podrías ampliarla?")
-            st.session_state.historial.append({"tipo": "bot", "contenido": "Tu respuesta es muy breve o poco clara. ¿Podrías ampliarla?"})
+                st.write("Tu respuesta no tiene suficiente detalle. ¿Podrías justificar tu opinión con más información o ejemplos?")
+            st.session_state.historial.append({"tipo": "bot", "contenido": "Tu respuesta no tiene suficiente detalle. ¿Podrías justificar tu opinión con más información o ejemplos?"})
         else:
             with st.chat_message("bot", avatar="🤖"):
                 st.write(analisis_reaccion)

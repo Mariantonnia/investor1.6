@@ -35,26 +35,30 @@ noticias = [
 
 plantilla_reaccion = """
 Reacción del inversor: {reaccion}
-Analiza el sentimiento y la preocupación expresada. 
-Clasifica la preocupación principal en una de estas categorías: 
-- Ambiental 
-- Social 
-- Gobernanza 
-- Riesgo 
 
-Evalúa si la respuesta es clara y detallada. Debe contener al menos una justificación o explicación. Si solo expresa una opinión sin justificación, devuelve "INSUFICIENTE".
+Analiza el sentimiento y la preocupación expresada.  
+Clasifica la preocupación principal en una de estas categorías:  
+- Ambiental  
+- Social  
+- Gobernanza  
+- Riesgo  
 
-Si la respuesta es insuficiente, genera una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor, sin imprimir la justificación.
+Si la respuesta es insuficiente (no contiene justificación o explicación), genera SOLO UNA PREGUNTA DE SEGUIMIENTO enfocada en la categoría detectada, sin ningún otro texto adicional.
 """
+
 prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
 
 plantilla_perfil = """
 Análisis de reacciones: {analisis}
-Genera un perfil detallado del inversor basado en sus reacciones, enfocándote en los pilares ESG (Ambiental, Social y Gobernanza) y su aversión al riesgo. 
+
+Genera un perfil detallado del inversor basado en sus reacciones, enfocándote en los pilares ESG (Ambiental, Social y Gobernanza) y su aversión al riesgo.
+
 Asigna una puntuación de 0 a 100 para cada pilar ESG y para el riesgo, donde 0 indica ninguna preocupación y 100 máxima preocupación o aversión.
+
 Devuelve las 4 puntuaciones en formato: Ambiental: [puntuación], Social: [puntuación], Gobernanza: [puntuación], Riesgo: [puntuación]
 """
+
 prompt_perfil = PromptTemplate(template=plantilla_perfil, input_variables=["analisis"])
 cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 
@@ -74,7 +78,7 @@ for mensaje in st.session_state.historial:
 if st.session_state.contador < len(noticias):
     if not st.session_state.mostrada_noticia and not st.session_state.esperando_respuesta:
         noticia = noticias[st.session_state.contador]
-        with st.chat_message("bot", avatar=""):
+        with st.chat_message("bot", avatar="🤖"):
             st.write(f"¿Qué opinas sobre esta noticia? {noticia}")
         st.session_state.historial.append({"tipo": "bot", "contenido": noticia})
         st.session_state.mostrada_noticia = True
@@ -93,14 +97,19 @@ if st.session_state.contador < len(noticias):
             analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
             
             if "INSUFICIENTE" in analisis_reaccion:
-                pregunta_seguimiento = analisis_reaccion.replace("INSUFICIENTE", "").strip()
-                # Mostrar solo la pregunta de seguimiento directamente
-                with st.chat_message("bot", avatar=""):
+                # Extraer solo la pregunta eliminando cualquier texto adicional
+                pregunta_seguimiento = analisis_reaccion.split("INSUFICIENTE")[-1].strip()
+                pregunta_seguimiento = pregunta_seguimiento.split("\n")[0].strip()
+                
+                with st.chat_message("bot", avatar="🤖"):
                     st.write(pregunta_seguimiento)
                 st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
                 st.session_state.esperando_respuesta = True
             else:
-                # Solo se pasa a la siguiente pregunta, sin explicaciones
+                with st.chat_message("bot", avatar="🤖"):
+                    st.write("Ok, pasemos a la siguiente pregunta.")
+                st.session_state.historial.append({"tipo": "bot", "contenido": "Ok, pasemos a la siguiente pregunta."})
+                
                 st.session_state.contador += 1
                 st.session_state.mostrada_noticia = False
                 st.session_state.esperando_respuesta = False
@@ -108,7 +117,7 @@ if st.session_state.contador < len(noticias):
 else:
     analisis_total = "\n".join(st.session_state.reacciones)
     perfil = cadena_perfil.run(analisis=analisis_total)
-    with st.chat_message("bot", avatar=""):
+    with st.chat_message("bot", avatar="🤖"):
         st.write(f"**Perfil del inversor:** {perfil}")
     st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
 

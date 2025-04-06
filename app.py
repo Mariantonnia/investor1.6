@@ -49,11 +49,21 @@ Si la respuesta es insuficiente, genera una pregunta de seguimiento enfocada en 
 prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
 
+plantilla_perfil = """
+Análisis de reacciones: {analisis}
+Genera un perfil detallado del inversor basado en sus reacciones, enfocándote en los pilares ESG (Ambiental, Social y Gobernanza) y su aversión al riesgo. 
+Asigna una puntuación de 0 a 100 para cada pilar ESG y para el riesgo, donde 0 indica ninguna preocupación y 100 máxima preocupación o aversión.
+Devuelve las 4 puntuaciones en formato: Ambiental: [puntuación], Social: [puntuación], Gobernanza: [puntuación], Riesgo: [puntuación]
+"""
+prompt_perfil = PromptTemplate(template=plantilla_perfil, input_variables=["analisis"])
+cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
+
 if "historial" not in st.session_state:
     st.session_state.historial = []
     st.session_state.contador = 0
     st.session_state.mostrada_noticia = False
     st.session_state.esperando_respuesta = False
+    st.session_state.reacciones = []
 
 st.title("Chatbot de Análisis de Sentimiento")
 
@@ -72,9 +82,9 @@ if st.session_state.contador < len(noticias):
     user_input = st.chat_input("Escribe tu respuesta aquí...")
     if user_input:
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
+        st.session_state.reacciones.append(user_input)
         
         if st.session_state.esperando_respuesta:
-            # Si el usuario está respondiendo a la pregunta de seguimiento, avanzar a la siguiente noticia
             st.session_state.esperando_respuesta = False
             st.session_state.contador += 1
             st.session_state.mostrada_noticia = False
@@ -93,10 +103,47 @@ if st.session_state.contador < len(noticias):
                     st.write(analisis_reaccion)
                 st.session_state.historial.append({"tipo": "bot", "contenido": analisis_reaccion})
                 
-                # Avanzar a la siguiente noticia si la respuesta es suficiente
                 st.session_state.contador += 1
                 st.session_state.mostrada_noticia = False
                 st.session_state.esperando_respuesta = False
                 st.rerun()
 else:
-    st.write("Análisis completado. Gracias por participar.")
+    analisis_total = "\n".join(st.session_state.reacciones)
+    perfil = cadena_perfil.run(analisis=analisis_total)
+    with st.chat_message("bot", avatar="🤖"):
+        st.write(f"**Perfil del inversor:** {perfil}")
+    st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
+
+    puntuaciones = {
+        "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
+        "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
+        "Gobernanza": int(re.search(r"Gobernanza: (\d+)", perfil).group(1)),
+        "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1)),
+    }
+
+    categorias = list(puntuaciones.keys())
+    valores = list(puntuaciones.values())
+
+    fig, ax = plt.subplots()
+    ax.bar(categorias, valores)
+    ax.set_ylabel("Puntuación (0-100)")
+    ax.set_title("Perfil del Inversor")
+    st.pyplot(fig)
+
+    try:
+        creds_json_str = st.secrets["gcp_service_account"]
+        creds_json = json.loads(creds_json_str)
+    except Exception as e:
+        st.error(f"Error al cargar las credenciales: {e}")
+        st.stop()
+    
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
+    client = gspread.authorize(creds)
+    
+    sheet = client.open('BBDD_RESPUESTAS').sheet1
+    fila = st.session_state.reacciones[:]
+    fila.extend(valores)
+    sheet.append_row(fila)
+
+    st.success("Respuestas y perfil guardados en Google Sheets en una misma fila.")

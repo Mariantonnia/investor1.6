@@ -33,15 +33,14 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
-
 plantilla_reaccion = """
 Reacción del inversor: {reaccion}
-Analiza el sentimiento y la preocupación expresada.  
-Clasifica la preocupación principal en una de estas categorías:  
-- Ambiental  
-- Social  
-- Gobernanza  
-- Riesgo  
+Analiza el sentimiento y la preocupación expresada. 
+Clasifica la preocupación principal en una de estas categorías: 
+- Ambiental 
+- Social 
+- Gobernanza 
+- Riesgo 
 
 Evalúa si la respuesta es clara y detallada. Debe contener al menos una justificación o explicación. Si solo expresa una opinión sin justificación, devuelve "INSUFICIENTE".
 
@@ -75,7 +74,7 @@ for mensaje in st.session_state.historial:
 if st.session_state.contador < len(noticias):
     if not st.session_state.mostrada_noticia and not st.session_state.esperando_respuesta:
         noticia = noticias[st.session_state.contador]
-        with st.chat_message("bot", avatar="🤖"):
+        with st.chat_message("bot", avatar=""):
             st.write(f"¿Qué opinas sobre esta noticia? {noticia}")
         st.session_state.historial.append({"tipo": "bot", "contenido": noticia})
         st.session_state.mostrada_noticia = True
@@ -96,16 +95,12 @@ if st.session_state.contador < len(noticias):
             if "INSUFICIENTE" in analisis_reaccion:
                 pregunta_seguimiento = analisis_reaccion.replace("INSUFICIENTE", "").strip()
                 # Mostrar solo la pregunta de seguimiento directamente
-                with st.chat_message("bot", avatar="🤖"):
+                with st.chat_message("bot", avatar=""):
                     st.write(pregunta_seguimiento)
                 st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
                 st.session_state.esperando_respuesta = True
             else:
                 # Solo se pasa a la siguiente pregunta, sin explicaciones
-                with st.chat_message("bot", avatar="🤖"):
-                    st.write("Ok, pasemos a la siguiente pregunta.")
-                st.session_state.historial.append({"tipo": "bot", "contenido": "Ok, pasemos a la siguiente pregunta."})
-                
                 st.session_state.contador += 1
                 st.session_state.mostrada_noticia = False
                 st.session_state.esperando_respuesta = False
@@ -113,7 +108,7 @@ if st.session_state.contador < len(noticias):
 else:
     analisis_total = "\n".join(st.session_state.reacciones)
     perfil = cadena_perfil.run(analisis=analisis_total)
-    with st.chat_message("bot", avatar="🤖"):
+    with st.chat_message("bot", avatar=""):
         st.write(f"**Perfil del inversor:** {perfil}")
     st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
 

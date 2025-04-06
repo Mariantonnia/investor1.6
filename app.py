@@ -43,7 +43,9 @@ Clasifica la preocupación principal en una de estas categorías:
 - Gobernanza  
 - Riesgo  
 
-Si la respuesta es insuficiente (no contiene justificación o explicación), genera SOLO UNA PREGUNTA DE SEGUIMIENTO enfocada en la categoría detectada, sin ningún otro texto adicional.
+Evalúa si la respuesta es clara y detallada. Debe contener al menos una justificación o explicación. Si solo expresa una opinión sin justificación, devuelve "INSUFICIENTE".
+
+Si la respuesta es insuficiente, genera una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor. Devuelve SOLO LA PREGUNTA, sin ninguna explicación adicional.
 """
 
 prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
@@ -97,8 +99,9 @@ if st.session_state.contador < len(noticias):
             analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
             
             if "INSUFICIENTE" in analisis_reaccion:
-                # Extraer solo la pregunta eliminando cualquier texto adicional
-                pregunta_seguimiento = analisis_reaccion.split("INSUFICIENTE")[-1].strip()
+                # Extraer solo la pregunta (eliminando "INSUFICIENTE" y cualquier texto adicional)
+                pregunta_seguimiento = analisis_reaccion.replace("INSUFICIENTE", "").strip()
+                # Eliminar saltos de línea y quedarse solo con la primera línea (la pregunta)
                 pregunta_seguimiento = pregunta_seguimiento.split("\n")[0].strip()
                 
                 with st.chat_message("bot", avatar="🤖"):

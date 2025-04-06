@@ -93,15 +93,15 @@ if st.session_state.contador < len(noticias):
             analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
             
             if "INSUFICIENTE" in analisis_reaccion:
+                pregunta_seguimiento = analisis_reaccion.replace("INSUFICIENTE", "").strip()
                 with st.chat_message("bot", avatar="🤖"):
-                    pregunta_seguimiento = analisis_reaccion.replace("INSUFICIENTE", "").strip()
                     st.write(pregunta_seguimiento)
                 st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
                 st.session_state.esperando_respuesta = True
             else:
                 with st.chat_message("bot", avatar="🤖"):
-                    st.write(analisis_reaccion)
-                st.session_state.historial.append({"tipo": "bot", "contenido": analisis_reaccion})
+                    st.write("Ok, pasemos a la siguiente pregunta.")
+                st.session_state.historial.append({"tipo": "bot", "contenido": "Ok, pasemos a la siguiente pregunta."})
                 
                 st.session_state.contador += 1
                 st.session_state.mostrada_noticia = False

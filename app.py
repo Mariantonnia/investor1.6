@@ -33,6 +33,7 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
+
 plantilla_reaccion = """
 Reacción del inversor: {reaccion}
 Analiza el sentimiento y la preocupación expresada.  
@@ -94,11 +95,13 @@ if st.session_state.contador < len(noticias):
             
             if "INSUFICIENTE" in analisis_reaccion:
                 pregunta_seguimiento = analisis_reaccion.replace("INSUFICIENTE", "").strip()
+                # Mostrar solo la pregunta de seguimiento directamente
                 with st.chat_message("bot", avatar="🤖"):
                     st.write(pregunta_seguimiento)
                 st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
                 st.session_state.esperando_respuesta = True
             else:
+                # Solo se pasa a la siguiente pregunta, sin explicaciones
                 with st.chat_message("bot", avatar="🤖"):
                     st.write("Ok, pasemos a la siguiente pregunta.")
                 st.session_state.historial.append({"tipo": "bot", "contenido": "Ok, pasemos a la siguiente pregunta."})

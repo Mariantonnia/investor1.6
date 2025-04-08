@@ -33,7 +33,6 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
-
 plantilla_reaccion = """
 Reacción del inversor: {reaccion}
 
@@ -44,7 +43,7 @@ Clasifica la preocupación principal en una de estas categorías:
 - Gobernanza  
 - Riesgo  
 
-Evalúa si la respuesta es clara y detallada. Debe contener al menos una justificación o explicación. Si solo expresa una opinión sin justificación, devuelve "INSUFICIENTE".
+Evalúa si la respuesta es clara y detallada. Debe contener al menos una justificación o explicación. Si solo expresa una opinión sin justificación o es demasiado corta (menos de 5 palabras), devuelve "INSUFICIENTE".
 
 Si la respuesta es insuficiente, genera una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor. Devuelve SOLO LA PREGUNTA, sin ninguna explicación adicional.
 """
@@ -128,4 +127,3 @@ else:
         st.success("Respuestas y perfil guardados en Google Sheets.")
     except Exception as e:
         st.error(f"Error al guardar los datos: {e}")
-

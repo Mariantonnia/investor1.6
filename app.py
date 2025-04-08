@@ -79,12 +79,13 @@ for mensaje in st.session_state.historial:
         st.write(mensaje["contenido"])
 
 if st.session_state.contador < len(noticias):
-    if not st.session_state.mostrada_noticia and not st.session_state.esperando_respuesta:
-        noticia = noticias[st.session_state.contador]
-        with st.chat_message("bot", avatar="🤖"):
-            st.write(f"¿Qué opinas sobre esta noticia? {noticia}")
-        st.session_state.historial.append({"tipo": "bot", "contenido": noticia})
-        st.session_state.mostrada_noticia = True
+    if not st.session_state.esperando_respuesta:
+        if not st.session_state.mostrada_noticia:
+            noticia = noticias[st.session_state.contador]
+            with st.chat_message("bot", avatar="🤖"):
+                st.write(f"¿Qué opinas sobre esta noticia? {noticia}")
+            st.session_state.historial.append({"tipo": "bot", "contenido": noticia})
+            st.session_state.mostrada_noticia = True
 
     user_input = st.chat_input("Escribe tu respuesta aquí...")
     if user_input:
@@ -137,4 +138,4 @@ else:
         sheet.append_row(st.session_state.reacciones + list(puntuaciones.values()))
         st.success("Respuestas y perfil guardados en Google Sheets.")
     except Exception as e:
-        st.error(f"Error al guardar los datos: {e}")
+        st.error(f"Err

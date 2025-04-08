@@ -138,4 +138,5 @@ else:
         sheet.append_row(st.session_state.reacciones + list(puntuaciones.values()))
         st.success("Respuestas y perfil guardados en Google Sheets.")
     except Exception as e:
-        st.error(f"Err
+        st.error(f"Error al guardar los datos: {e}")
+

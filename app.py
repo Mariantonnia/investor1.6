@@ -33,6 +33,7 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
+
 plantilla_reaccion = """
 Reacción del inversor: {reaccion}
 
@@ -90,70 +91,41 @@ if st.session_state.contador < len(noticias):
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
         st.session_state.reacciones.append(user_input)
         
-        if st.session_state.esperando_respuesta:
-            st.session_state.esperando_respuesta = False
+        analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
+        
+        if "INSUFICIENTE" in analisis_reaccion:
+            pregunta_seguimiento = analisis_reaccion.replace("INSUFICIENTE", "").strip().split("\n")[0]
+            with st.chat_message("bot", avatar="🤖"):
+                st.write(pregunta_seguimiento)
+            st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
+            st.session_state.esperando_respuesta = True
+        else:
             st.session_state.contador += 1
             st.session_state.mostrada_noticia = False
+            st.session_state.esperando_respuesta = False
             st.rerun()
-        else:
-            analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
-            
-            if "INSUFICIENTE" in analisis_reaccion:
-                # Extraer solo la pregunta (eliminando "INSUFICIENTE" y cualquier texto adicional)
-                pregunta_seguimiento = analisis_reaccion.replace("INSUFICIENTE", "").strip()
-                # Eliminar saltos de línea y quedarse solo con la primera línea (la pregunta)
-                pregunta_seguimiento = pregunta_seguimiento.split("\n")[0].strip()
-                
-                with st.chat_message("bot", avatar="🤖"):
-                    st.write(pregunta_seguimiento)
-                st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
-                st.session_state.esperando_respuesta = True
-            else:
-                with st.chat_message("bot", avatar="🤖"):
-                    st.write("Ok, pasemos a la siguiente pregunta.")
-                st.session_state.historial.append({"tipo": "bot", "contenido": "Ok, pasemos a la siguiente pregunta."})
-                
-                st.session_state.contador += 1
-                st.session_state.mostrada_noticia = False
-                st.session_state.esperando_respuesta = False
-                st.rerun()
 else:
     analisis_total = "\n".join(st.session_state.reacciones)
     perfil = cadena_perfil.run(analisis=analisis_total)
     with st.chat_message("bot", avatar="🤖"):
         st.write(f"**Perfil del inversor:** {perfil}")
     st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
-
-    puntuaciones = {
-        "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
-        "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
-        "Gobernanza": int(re.search(r"Gobernanza: (\d+)", perfil).group(1)),
-        "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1)),
-    }
-
-    categorias = list(puntuaciones.keys())
-    valores = list(puntuaciones.values())
-
+    
+    puntuaciones = {k: int(re.search(fr"{k}: (\d+)", perfil).group(1)) for k in ["Ambiental", "Social", "Gobernanza", "Riesgo"]}
+    
     fig, ax = plt.subplots()
-    ax.bar(categorias, valores)
+    ax.bar(puntuaciones.keys(), puntuaciones.values())
     ax.set_ylabel("Puntuación (0-100)")
     ax.set_title("Perfil del Inversor")
     st.pyplot(fig)
-
+    
     try:
-        creds_json_str = st.secrets["gcp_service_account"]
-        creds_json = json.loads(creds_json_str)
+        creds_json = json.loads(st.secrets["gcp_service_account"])
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        client = gspread.authorize(ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope))
+        sheet = client.open('BBDD_RESPUESTAS').sheet1
+        sheet.append_row(st.session_state.reacciones + list(puntuaciones.values()))
+        st.success("Respuestas y perfil guardados en Google Sheets.")
     except Exception as e:
-        st.error(f"Error al cargar las credenciales: {e}")
-        st.stop()
-    
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
-    client = gspread.authorize(creds)
-    
-    sheet = client.open('BBDD_RESPUESTAS').sheet1
-    fila = st.session_state.reacciones[:]
-    fila.extend(valores)
-    sheet.append_row(fila)
+        st.error(f"Error al guardar los datos: {e}")
 
-    st.success("Respuestas y perfil guardados en Google Sheets en una misma fila.")

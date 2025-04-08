@@ -70,6 +70,7 @@ if "historial" not in st.session_state:
     st.session_state.mostrada_noticia = False
     st.session_state.esperando_respuesta = False
     st.session_state.reacciones = []
+    st.session_state.ultima_pregunta = ""
 
 st.title("Chatbot de Análisis de Sentimiento")
 
@@ -90,6 +91,13 @@ if st.session_state.contador < len(noticias):
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
         st.session_state.reacciones.append(user_input)
         
+        if st.session_state.esperando_respuesta:
+            st.session_state.esperando_respuesta = False
+            st.session_state.ultima_pregunta = ""
+            st.session_state.contador += 1
+            st.session_state.mostrada_noticia = False
+            st.rerun()
+        
         analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
         
         if analisis_reaccion.startswith("¿"):
@@ -97,6 +105,7 @@ if st.session_state.contador < len(noticias):
                 st.write(analisis_reaccion)
             st.session_state.historial.append({"tipo": "bot", "contenido": analisis_reaccion})
             st.session_state.esperando_respuesta = True
+            st.session_state.ultima_pregunta = analisis_reaccion
         else:
             with st.chat_message("bot", avatar="🤖"):
                 st.write(f"La preocupación principal es {analisis_reaccion}.")

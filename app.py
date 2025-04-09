@@ -33,7 +33,7 @@ noticias = [
     "Las aportaciones a los planes de pensiones caen 10.000 millones en los últimos cuatro años",
 ]
 
-# Nueva plantilla para evaluación de suficiencia
+# Plantilla para evaluación de suficiencia
 plantilla_evaluacion = """
 Evalúa si esta respuesta del usuario es suficientemente detallada para un análisis ESG. 
 Considera como criterios:
@@ -80,18 +80,34 @@ Devuelve las 4 puntuaciones en formato: Ambiental: [puntuación], Social: [puntu
 prompt_perfil = PromptTemplate(template=plantilla_perfil, input_variables=["analisis"])
 cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 
+# Función para procesar respuestas válidas
+def procesar_respuesta_valida(user_input):
+    analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
+    with st.chat_message("bot", avatar="🤖"):
+        st.write(analisis_reaccion)
+    st.session_state.historial.append({"tipo": "bot", "contenido": analisis_reaccion})
+    
+    st.session_state.contador += 1
+    st.session_state.mostrada_noticia = False
+    st.session_state.esperando_ampliacion = False
+    st.rerun()
+
+# Inicialización de estados
 if "historial" not in st.session_state:
     st.session_state.historial = []
     st.session_state.contador = 0
     st.session_state.reacciones = []
     st.session_state.mostrada_noticia = False
+    st.session_state.esperando_ampliacion = False
 
 st.title("Chatbot de Análisis de Sentimiento")
 
+# Mostrar historial de chat
 for mensaje in st.session_state.historial:
     with st.chat_message(mensaje["tipo"]):
         st.write(mensaje["contenido"])
 
+# Lógica principal del chat
 if st.session_state.contador < len(noticias):
     if not st.session_state.mostrada_noticia:
         noticia = noticias[st.session_state.contador]
@@ -99,39 +115,36 @@ if st.session_state.contador < len(noticias):
             st.write(f"¿Qué opinas sobre esta noticia? {noticia}")
         st.session_state.historial.append({"tipo": "bot", "contenido": noticia})
         st.session_state.mostrada_noticia = True
+        st.session_state.esperando_ampliacion = False
 
     user_input = st.chat_input("Escribe tu respuesta aquí...")
     if user_input:
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
         st.session_state.reacciones.append(user_input)
         
-        # Evaluar calidad de respuesta con LLM
-        evaluacion = cadena_evaluacion.run(respuesta=user_input).strip().lower()
-        
-        if evaluacion == "false":
-            with st.chat_message("bot", avatar="🤖"):
-                st.markdown(f"¿Podrías ampliar tu opinión sobre esta noticia?\n\n**{noticias[st.session_state.contador]}**")
-                st.markdown("Por favor, menciona aspectos como:")
-                st.markdown("- Impacto ambiental/social\n- Preocupaciones de gobernanza\n- Percepción de riesgos\n- Consecuencias a largo plazo")
-            st.session_state.historial.append({"tipo": "bot", "contenido": "Solicitud de ampliación"})
-        else:
-            # Procesar respuesta adecuada
-            analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
-            with st.chat_message("bot", avatar="🤖"):
-                st.write(analisis_reaccion)
-            st.session_state.historial.append({"tipo": "bot", "contenido": analisis_reaccion})
+        if not st.session_state.esperando_ampliacion:
+            evaluacion = cadena_evaluacion.run(respuesta=user_input).strip().lower()
             
-            st.session_state.contador += 1
-            st.session_state.mostrada_noticia = False
-            st.rerun()
+            if evaluacion == "false":
+                st.session_state.esperando_ampliacion = True
+                with st.chat_message("bot", avatar="🤖"):
+                    st.markdown(f"¿Podrías ampliar tu opinión sobre: **{noticias[st.session_state.contador]}**?")
+                    st.markdown("Por favor, menciona aspectos como:")
+                    st.markdown("- Impacto ambiental/social\n- Preocupaciones de gobernanza\n- Percepción de riesgos")
+                st.session_state.historial.append({"tipo": "bot", "contenido": "Solicitud de ampliación"})
+            else:
+                procesar_respuesta_valida(user_input)
+        else:
+            procesar_respuesta_valida(user_input)
 else:
+    # Generación del perfil final
     analisis_total = "\n".join(st.session_state.reacciones)
     perfil = cadena_perfil.run(analisis=analisis_total)
     with st.chat_message("bot", avatar="🤖"):
         st.write(f"**Perfil del inversor:** {perfil}")
     st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
 
-    # Extraer puntuaciones del perfil
+    # Extracción de puntuaciones
     puntuaciones = {
         "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
         "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
@@ -139,7 +152,7 @@ else:
         "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1)),
     }
 
-    # Gráfico de barras
+    # Gráfico de perfil
     fig, ax = plt.subplots()
     ax.bar(puntuaciones.keys(), puntuaciones.values())
     ax.set_ylabel("Puntuación (0-100)")
@@ -161,3 +174,13 @@ else:
         
     except Exception as e:
         st.error(f"Error al guardar datos: {str(e)}")
+
+# Workaround para mantener el foco en el input
+st.markdown("""
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.querySelector('.stChatInput textarea');
+    if(input) input.focus();
+});
+</script>
+""", unsafe_allow_html=True)

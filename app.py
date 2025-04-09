@@ -83,12 +83,24 @@ cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 # Función para procesar respuestas válidas
 def procesar_respuesta_valida(user_input):
     analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
+    
+    # Extraer pregunta de seguimiento usando expresión regular
+    pregunta_seguimiento = re.search(r"Pregunta de seguimiento:.*?\n(.*?)\n", analisis_reaccion, re.DOTALL)
+    
     with st.chat_message("bot", avatar="🤖"):
         st.write(analisis_reaccion)
+        
+        if pregunta_seguimiento:
+            st.session_state.pregunta_pendiente = pregunta_seguimiento.group(1).strip()
+            st.write(f"**Pregunta de seguimiento:** {st.session_state.pregunta_pendiente}")
+    
     st.session_state.historial.append({"tipo": "bot", "contenido": analisis_reaccion})
     
-    st.session_state.contador += 1
-    st.session_state.mostrada_noticia = False
+    # Solo avanzar si NO hay pregunta pendiente
+    if not hasattr(st.session_state, 'pregunta_pendiente'):
+        st.session_state.contador += 1
+        st.session_state.mostrada_noticia = False
+    
     st.session_state.esperando_ampliacion = False
     st.rerun()
 
@@ -116,26 +128,31 @@ if st.session_state.contador < len(noticias):
         st.session_state.historial.append({"tipo": "bot", "contenido": noticia})
         st.session_state.mostrada_noticia = True
         st.session_state.esperando_ampliacion = False
+        if hasattr(st.session_state, 'pregunta_pendiente'):
+            del st.session_state.pregunta_pendiente  # Resetear pregunta pendiente
 
     user_input = st.chat_input("Escribe tu respuesta aquí...")
     if user_input:
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
         st.session_state.reacciones.append(user_input)
         
-        if not st.session_state.esperando_ampliacion:
-            evaluacion = cadena_evaluacion.run(respuesta=user_input).strip().lower()
-            
-            if evaluacion == "false":
-                st.session_state.esperando_ampliacion = True
-                with st.chat_message("bot", avatar="🤖"):
-                    st.markdown(f"¿Podrías ampliar tu opinión sobre: **{noticias[st.session_state.contador]}**?")
-                    st.markdown("Por favor, menciona aspectos como:")
-                    st.markdown("- Impacto ambiental/social\n- Preocupaciones de gobernanza\n- Percepción de riesgos")
-                st.session_state.historial.append({"tipo": "bot", "contenido": "Solicitud de ampliación"})
+        # Si hay pregunta pendiente, tratarla como ampliación
+        if hasattr(st.session_state, 'pregunta_pendiente'):
+            del st.session_state.pregunta_pendiente
+            procesar_respuesta_valida(user_input)
+        else:
+            if not st.session_state.esperando_ampliacion:
+                evaluacion = cadena_evaluacion.run(respuesta=user_input).strip().lower()
+                
+                if evaluacion == "false":
+                    st.session_state.esperando_ampliacion = True
+                    with st.chat_message("bot", avatar="🤖"):
+                        st.markdown(f"¿Podrías ampliar tu opinión sobre: **{noticias[st.session_state.contador]}**?")
+                    st.session_state.historial.append({"tipo": "bot", "contenido": "Solicitud de ampliación"})
+                else:
+                    procesar_respuesta_valida(user_input)
             else:
                 procesar_respuesta_valida(user_input)
-        else:
-            procesar_respuesta_valida(user_input)
 else:
     # Generación del perfil final
     analisis_total = "\n".join(st.session_state.reacciones)

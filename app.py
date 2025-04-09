@@ -9,7 +9,6 @@ import json
 from dotenv import load_dotenv
 import matplotlib.pyplot as plt
 
-
 load_dotenv()
 
 # Configurar el modelo LLM
@@ -36,11 +35,17 @@ noticias = [
 
 # Plantilla para analizar la reacción del usuario y generar una pregunta si es necesario
 plantilla_reaccion = """
-Opinión: {reaccion}
-¿La respuesta es clara y proporciona suficiente contexto?  
+Reacción del inversor: {reaccion}
+Analiza si la respuesta es clara y proporciona suficiente contexto.  
 
-Si no es suficiente, genera una pregunta directa y natural para obtener más detalles sin mencionar palabras como 'Gobernanza' o 'Ambiental'.  
-Si la respuesta es suficiente, devuelve un texto vacío.
+Si la respuesta es insuficiente, genera una pregunta específica de aclaración basada en la categoría ESG relevante:  
+- Ambiental: "¿Cómo crees que esto afecta la sostenibilidad del sector?"  
+- Social: "¿Crees que esto puede afectar la percepción pública de la empresa?"  
+- Gobernanza: "¿Este evento te hace confiar más o menos en la gestión de la empresa?"  
+- Riesgo: "¿Consideras que esto aumenta la incertidumbre en el mercado?"  
+
+Si la respuesta es suficiente, no generes ninguna pregunta.
+Devuelve solo la pregunta adicional si es necesaria. Si no se requiere aclaración, devuelve un texto vacío.
 """
 prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
@@ -48,14 +53,10 @@ cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
 # Plantilla para generar el perfil del inversor
 plantilla_perfil = """
 Análisis de reacciones: {analisis}
-Genera un perfil detallado del inversor basado en sus respuestas.  
-Asigna una puntuación de 0 a 100 para cada área:  
-- Ambiental  
-- Social  
-- Riesgo  
-
+Genera un perfil detallado del inversor basado en sus reacciones, enfocándote en los pilares ESG (Ambiental, Social y Gobernanza) y su aversión al riesgo.  
+Asigna una puntuación de 0 a 100 para cada pilar ESG y para el riesgo, donde 0 indica ninguna preocupación y 100 máxima preocupación o aversión.  
 Devuelve las puntuaciones en formato:  
-Ambiental: [puntuación], Social: [puntuación], Riesgo: [puntuación]
+Ambiental: [puntuación], Social: [puntuación], Gobernanza: [puntuación], Riesgo: [puntuación]
 """
 prompt_perfil = PromptTemplate(template=plantilla_perfil, input_variables=["analisis"])
 cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
@@ -105,6 +106,7 @@ else:
     puntuaciones = {
         "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
         "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
+        "Gobernanza": int(re.search(r"Gobernanza: (\d+)", perfil).group(1)),
         "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1)),
     }
 
@@ -135,6 +137,7 @@ else:
     fila.extend([
         puntuaciones["Ambiental"],
         puntuaciones["Social"],
+        puntuaciones["Gobernanza"],
         puntuaciones["Riesgo"]
     ])
     

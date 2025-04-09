@@ -26,7 +26,7 @@ noticias = [
     "Amancio Ortega crea un fondo de 100 millones de euros para los afectados de la dana",
     "Freshly Cosmetics despide a 52 empleados en Reus, el 18% de la plantilla",
     "Wall Street y los mercados globales caen ante la incertidumbre por la guerra comercial y el temor a una recesión",
-    "El mercado de criptomonedas se desploma: Bitcoin cae a 80.000 dólares, las altcoins se hunden en medio de una frenética liquidación",
+    "El mercado de criptomonedas se desploma: Bitcoin cae a 80.000 dólares, las altcoins se hunden inmerso en una frenética liquidación",
     "Granada retrasa seis meses el inicio de la Zona de Bajas Emisiones, previsto hasta ahora para abril",
     "McDonald's donará a la Fundación Ronald McDonald todas las ganancias por ventas del Big Mac del 6 de diciembre",
     "El Gobierno autoriza a altos cargos públicos a irse a Indra, Escribano, CEOE, Barceló, Iberdrola o Airbus",
@@ -63,6 +63,15 @@ Devuelve las 4 puntuaciones en formato: Ambiental: [puntuación], Social: [puntu
 prompt_perfil = PromptTemplate(template=plantilla_perfil, input_variables=["analisis"])
 cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 
+plantilla_verificacion = """
+Respuesta: {respuesta}
+
+Determina si la respuesta proporciona suficiente información para un análisis de sentimiento detallado. 
+Devuelve "suficiente" si la respuesta es detallada y proporciona suficiente contexto, o "insuficiente" si la respuesta es breve o carece de detalles.
+"""
+prompt_verificacion = PromptTemplate(template=plantilla_verificacion, input_variables=["respuesta"])
+cadena_verificacion = LLMChain(llm=llm, prompt=prompt_verificacion)
+
 if "historial" not in st.session_state:
     st.session_state.historial = []
     st.session_state.contador = 0
@@ -78,7 +87,7 @@ for mensaje in st.session_state.historial:
 if st.session_state.contador < len(noticias):
     if not st.session_state.mostrada_noticia:
         noticia = noticias[st.session_state.contador]
-        with st.chat_message("bot"): # Correccion aqui.
+        with st.chat_message("bot"):
             st.write(f"¿Qué opinas sobre esta noticia? {noticia}")
         st.session_state.historial.append({"tipo": "bot", "contenido": noticia})
         st.session_state.mostrada_noticia = True
@@ -88,8 +97,9 @@ if st.session_state.contador < len(noticias):
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
         st.session_state.reacciones.append(user_input)
         analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
-        # Lógica para verificar si la respuesta tiene suficiente contenido
-        if len(user_input.split()) < 5:  # Puedes ajustar este umbral
+        verificacion_respuesta = cadena_verificacion.run(respuesta=user_input)
+
+        if "insuficiente" in verificacion_respuesta.lower():
             with st.chat_message("bot"):
                 st.write("Podrías ampliar un poco más tu opinión?")
             st.session_state.historial.append({"tipo": "bot", "contenido": "Podrías ampliar un poco más tu opinión?"})

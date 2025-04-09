@@ -66,8 +66,9 @@ cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 plantilla_verificacion = """
 Respuesta: {respuesta}
 
-Determina si la respuesta proporciona suficiente información para un análisis de sentimiento detallado. 
-Devuelve "suficiente" si la respuesta es detallada y proporciona suficiente contexto, o "insuficiente" si la respuesta es breve o carece de detalles.
+Evalúa si la respuesta proporciona suficiente información para un análisis de sentimiento profundo y detallado. 
+Considera si la respuesta ofrece contexto, razones y opiniones claras. 
+Devuelve "suficiente" si la respuesta es detallada y proporciona suficiente contexto, o "insuficiente" si la respuesta es breve, vaga o carece de detalles relevantes.
 """
 prompt_verificacion = PromptTemplate(template=plantilla_verificacion, input_variables=["respuesta"])
 cadena_verificacion = LLMChain(llm=llm, prompt=prompt_verificacion)

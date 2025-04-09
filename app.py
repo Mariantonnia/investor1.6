@@ -52,7 +52,7 @@ Solo devuelve "True" o "False".
 prompt_evaluacion = PromptTemplate(template=plantilla_evaluacion, input_variables=["respuesta"])
 cadena_evaluacion = LLMChain(llm=llm, prompt=prompt_evaluacion)
 
-# Nueva plantilla simplificada para reacciones
+# Plantilla simplificada para reacciones
 plantilla_reaccion = """
 Reacción del inversor: {reaccion}
 Analiza el sentimiento y la preocupación expresada.  
@@ -80,16 +80,22 @@ cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 
 # Función para procesar respuestas válidas
 def procesar_respuesta_valida(user_input):
+    # Contador de preguntas por noticia
+    if "contador_preguntas" not in st.session_state:
+        st.session_state.contador_preguntas = 0
+    
     pregunta_seguimiento = cadena_reaccion.run(reaccion=user_input).strip()
     
     with st.chat_message("bot", avatar="🤖"):
-        if "¿" in pregunta_seguimiento:  # Verificar que sea una pregunta
+        if "¿" in pregunta_seguimiento and st.session_state.contador_preguntas < 2:
             st.write(f"**Pregunta de seguimiento:** {pregunta_seguimiento}")
             st.session_state.pregunta_pendiente = pregunta_seguimiento
+            st.session_state.contador_preguntas += 1
         else:
-            st.write("Gracias por tu análisis. Avanzando a la siguiente noticia...")
+            st.write("Gracias por tus respuestas. Avanzando a la siguiente noticia...")
             st.session_state.contador += 1
             st.session_state.mostrada_noticia = False
+            st.session_state.contador_preguntas = 0
     
     st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
     st.session_state.reacciones.append(user_input)
@@ -103,6 +109,7 @@ if "historial" not in st.session_state:
     st.session_state.reacciones = []
     st.session_state.mostrada_noticia = False
     st.session_state.esperando_ampliacion = False
+    st.session_state.contador_preguntas = 0
 
 st.title("Chatbot de Análisis de Sentimiento")
 
@@ -155,10 +162,4 @@ else:
         "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
         "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
         "Gobernanza": int(re.search(r"Gobernanza: (\d+)", perfil).group(1)),
-        "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1)),
-    }
-
-    fig, ax = plt.subplots()
-    ax.bar(puntuaciones.keys(), puntuaciones.values())
-    ax.set_ylabel("Puntuación (0-100)")
-    ax.set_title("Perfil del Inversor")
+        "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil

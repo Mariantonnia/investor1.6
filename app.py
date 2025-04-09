@@ -162,4 +162,4 @@ else:
         "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
         "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
         "Gobernanza": int(re.search(r"Gobernanza: (\d+)", perfil).group(1)),
-        "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1))
+        "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1))}

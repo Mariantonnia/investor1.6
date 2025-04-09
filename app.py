@@ -57,7 +57,7 @@ plantilla_reaccion = """
 Reacción del inversor: {reaccion}
 Genera ÚNICAMENTE una pregunta de seguimiento enfocada en profundizar en la opinión del inversor.  
 Ejemplo:  
-"¿Consideras que la existencia de mecanismos robustos de control interno y transparencia podría mitigar tu preocupación por la gobernanza corporática en esta empresa?"
+"¿Consideras que la existencia de mecanismos robustos de control interno y transparencia podría mitigar tu preocupación por la gobernanza corporativa en esta empresa?"
 """
 prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
@@ -72,7 +72,7 @@ prompt_perfil = PromptTemplate(template=plantilla_perfil, input_variables=["anal
 cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 
 # Función para procesar respuestas válidas
-def procesar_respuesta_valida(user_input):
+def procesar_respuesta_valida(user_input, pregunta_ampliacion=""):
     if "contador_preguntas" not in st.session_state:
         st.session_state.contador_preguntas = 0
 
@@ -134,9 +134,11 @@ if st.session_state.contador < len(noticias):
                 
                 if evaluacion == "false":
                     st.session_state.esperando_ampliacion = True
+                    # Guardar la pregunta de ampliación
+                    pregunta_ampliacion = cadena_reaccion.run(reaccion=user_input).strip()
                     with st.chat_message("bot", avatar="🤖"):
-                        st.markdown(f"¿Podrías ampliar tu opinión sobre: **{noticias[st.session_state.contador]}**?")
-                    st.session_state.historial.append({"tipo": "bot", "contenido": "Solicitud de ampliación"})
+                        st.write(f"{pregunta_ampliacion}")
+                    st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_ampliacion})
                 else:
                     procesar_respuesta_valida(user_input)
             else:

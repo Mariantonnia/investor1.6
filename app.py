@@ -161,4 +161,4 @@ else:
     fig, ax = plt.subplots()
     ax.bar(puntuaciones.keys(), puntuaciones.values())
     ax.set_ylabel("Puntuación (0-100)")
-    ax.set_title("Perfil del Inversor
+    ax.set_title("Perfil del Inversor")

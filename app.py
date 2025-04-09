@@ -52,6 +52,7 @@ Solo devuelve "True" o "False".
 prompt_evaluacion = PromptTemplate(template=plantilla_evaluacion, input_variables=["respuesta"])
 cadena_evaluacion = LLMChain(llm=llm, prompt=prompt_evaluacion)
 
+# Nueva plantilla simplificada para reacciones
 plantilla_reaccion = """
 Reacción del inversor: {reaccion}
 Analiza el sentimiento y la preocupación expresada.  
@@ -61,12 +62,9 @@ Clasifica la preocupación principal en una de estas categorías:
 - Gobernanza  
 - Riesgo  
 
-Genera una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor.  
-Ejemplos:  
-- Ambiental: "¿Cómo crees que esto afecta la sostenibilidad del sector?"  
-- Social: "¿Crees que esto puede afectar la percepción pública de la empresa?"  
-- Gobernanza: "¿Este evento te hace confiar más o menos en la gestión de la empresa?"  
-- Riesgo: "¿Consideras que esto aumenta la incertidumbre en el mercado?" 
+Genera ÚNICAMENTE una pregunta de seguimiento enfocada en la categoría detectada para profundizar en la opinión del inversor, SIN incluir análisis ni explicaciones.  
+Ejemplo de formato:  
+"¿Consideras que la existencia de mecanismos robustos de control interno y transparencia podría mitigar tu preocupación por la gobernanza corporativa en esta empresa?"
 """
 prompt_reaccion = PromptTemplate(template=plantilla_reaccion, input_variables=["reaccion"])
 cadena_reaccion = LLMChain(llm=llm, prompt=prompt_reaccion)
@@ -82,25 +80,19 @@ cadena_perfil = LLMChain(llm=llm, prompt=prompt_perfil)
 
 # Función para procesar respuestas válidas
 def procesar_respuesta_valida(user_input):
-    analisis_reaccion = cadena_reaccion.run(reaccion=user_input)
-    
-    # Extraer pregunta de seguimiento usando expresión regular
-    pregunta_seguimiento = re.search(r"Pregunta de seguimiento:.*?\n(.*?)\n", analisis_reaccion, re.DOTALL)
+    pregunta_seguimiento = cadena_reaccion.run(reaccion=user_input).strip()
     
     with st.chat_message("bot", avatar="🤖"):
-        st.write(analisis_reaccion)
-        
-        if pregunta_seguimiento:
-            st.session_state.pregunta_pendiente = pregunta_seguimiento.group(1).strip()
-            st.write(f"**Pregunta de seguimiento:** {st.session_state.pregunta_pendiente}")
+        if "¿" in pregunta_seguimiento:  # Verificar que sea una pregunta
+            st.write(f"**Pregunta de seguimiento:** {pregunta_seguimiento}")
+            st.session_state.pregunta_pendiente = pregunta_seguimiento
+        else:
+            st.write("Gracias por tu análisis. Avanzando a la siguiente noticia...")
+            st.session_state.contador += 1
+            st.session_state.mostrada_noticia = False
     
-    st.session_state.historial.append({"tipo": "bot", "contenido": analisis_reaccion})
-    
-    # Solo avanzar si NO hay pregunta pendiente
-    if not hasattr(st.session_state, 'pregunta_pendiente'):
-        st.session_state.contador += 1
-        st.session_state.mostrada_noticia = False
-    
+    st.session_state.historial.append({"tipo": "bot", "contenido": pregunta_seguimiento})
+    st.session_state.reacciones.append(user_input)
     st.session_state.esperando_ampliacion = False
     st.rerun()
 
@@ -129,14 +121,12 @@ if st.session_state.contador < len(noticias):
         st.session_state.mostrada_noticia = True
         st.session_state.esperando_ampliacion = False
         if hasattr(st.session_state, 'pregunta_pendiente'):
-            del st.session_state.pregunta_pendiente  # Resetear pregunta pendiente
+            del st.session_state.pregunta_pendiente
 
     user_input = st.chat_input("Escribe tu respuesta aquí...")
     if user_input:
         st.session_state.historial.append({"tipo": "user", "contenido": user_input})
-        st.session_state.reacciones.append(user_input)
         
-        # Si hay pregunta pendiente, tratarla como ampliación
         if hasattr(st.session_state, 'pregunta_pendiente'):
             del st.session_state.pregunta_pendiente
             procesar_respuesta_valida(user_input)
@@ -161,7 +151,6 @@ else:
         st.write(f"**Perfil del inversor:** {perfil}")
     st.session_state.historial.append({"tipo": "bot", "contenido": f"**Perfil del inversor:** {perfil}"})
 
-    # Extracción de puntuaciones
     puntuaciones = {
         "Ambiental": int(re.search(r"Ambiental: (\d+)", perfil).group(1)),
         "Social": int(re.search(r"Social: (\d+)", perfil).group(1)),
@@ -169,35 +158,7 @@ else:
         "Riesgo": int(re.search(r"Riesgo: (\d+)", perfil).group(1)),
     }
 
-    # Gráfico de perfil
     fig, ax = plt.subplots()
     ax.bar(puntuaciones.keys(), puntuaciones.values())
     ax.set_ylabel("Puntuación (0-100)")
-    ax.set_title("Perfil del Inversor")
-    st.pyplot(fig)
-
-    # Conexión con Google Sheets
-    try:
-        creds_json_str = st.secrets["gcp_service_account"]
-        creds_json = json.loads(creds_json_str)
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
-        client = gspread.authorize(creds)
-        sheet = client.open('BBDD_RESPUESTAS').sheet1
-        
-        fila = st.session_state.reacciones + list(puntuaciones.values())
-        sheet.append_row(fila)
-        st.success("Datos guardados exitosamente en Google Sheets")
-        
-    except Exception as e:
-        st.error(f"Error al guardar datos: {str(e)}")
-
-# Workaround para mantener el foco en el input
-st.markdown("""
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    const input = document.querySelector('.stChatInput textarea');
-    if(input) input.focus();
-});
-</script>
-""", unsafe_allow_html=True)
+    ax.set_title("Perfil del Inversor
